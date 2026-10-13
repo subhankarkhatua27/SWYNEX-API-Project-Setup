@@ -124,3 +124,141 @@ Typical workflow:
 git add .
 git commit -m "Update backend service"
 git push
+
+User Management API
+
+The backend has been extended with user CRUD operations using FastAPI and SQLAlchemy.
+
+Project Features
+
+- Health check endpoint
+- Create a new user
+- Retrieve a user by ID
+- Update an existing user
+- Delete a user
+- Input validation with Pydantic
+- SQLAlchemy ORM models and database session management
+
+API Endpoints
+
+Create User
+
+Method: POST
+Endpoint: /users
+
+Request body:
+
+{
+  "name": "John Doe",
+  "email": "john@example.com"
+}
+
+Example response:
+
+{
+  "id": 1,
+  "name": "John Doe",
+  "email": "john@example.com"
+}
+
+Get User by ID
+
+Method: GET
+Endpoint: /users/{user_id}
+
+Example response:
+
+{
+  "id": 1,
+  "name": "John Doe",
+  "email": "john@example.com"
+}
+
+Update User
+
+Method: PUT
+Endpoint: /users/{user_id}
+
+Request body:
+
+{
+  "name": "John Updated",
+  "email": "johnupdated@example.com"
+}
+
+Example response:
+
+{
+  "id": 1,
+  "name": "John Updated",
+  "email": "johnupdated@example.com"
+}
+
+Delete User
+
+Method: DELETE
+Endpoint: /users/{user_id}
+
+Example response:
+
+{
+  "message": "User deleted successfully"
+}
+
+Validation Models
+
+The API uses Pydantic models to validate request and response payloads.
+
+UserRequest model:
+
+- name: string
+- email: valid email address
+
+UserResponse model:
+
+- id: integer
+- name: string
+- email: valid email address
+
+These models ensure incoming user data is properly structured before being processed by the application.
+
+Database Models
+
+The project includes a SQLAlchemy ORM model for the users table.
+
+User table fields:
+
+- id: primary key
+- name: required string
+- email: required unique string
+
+This table is created automatically when the application starts using the SQLAlchemy metadata.
+
+Database Session Configuration
+
+The application includes a database connection setup and session management using SQLAlchemy:
+
+- Database URL is loaded from environment variables
+- Engine is created using create_engine()
+- SessionLocal is configured with sessionmaker()
+- get_db() provides a database session for each request
+- Base.metadata.create_all() ensures the tables exist
+
+Example environment variable:
+
+DATABASE_URL=sqlite:///./users.db
+
+This configuration allows the API to interact with the database and manage user records efficiently.
+
+Database Files and Modules
+
+The project now includes the following database-related files:
+
+- app/db.py: database connection and session setup
+- app/tables.py: database models and ORM table definitions
+- app/validators.py: request/response validation models
+- app/main.py: API routes and CRUD logic
+
+This structure keeps the API, validation layer, and database layer organized and easy to maintain.
+
+
