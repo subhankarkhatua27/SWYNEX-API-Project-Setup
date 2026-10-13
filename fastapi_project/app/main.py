@@ -54,7 +54,7 @@ def update_user(user_id : int ,updated_user : UserRequest, db : Session = Depend
     
     
     
-@app.delete("/users/{user_id}" ,response_model=UserResponse)
+@app.delete("/users/{user_id}")
 def delete_user(user_id: int, db: Session = Depends(get_db)):
     with db.begin() :
         user = db.get(User , user_id)
