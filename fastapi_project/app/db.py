@@ -3,6 +3,8 @@ from sqlalchemy.orm import sessionmaker
 import os
 from dotenv import load_dotenv
 
+from tables import Base
+
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL is None:
@@ -14,4 +16,6 @@ def get_db():
     with SessionLocal() as db :
         yield db
         
-        
+
+with engine.begin() as conn:
+    Base.metadata.create_all(conn)
