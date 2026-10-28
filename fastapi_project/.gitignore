@@ -1,2 +1,22 @@
-/app/.env
-/../.venv/
+# Virtual environment
+.venv/
+*/.venv/
+
+# Environment files
+.env
+app/.env
+*.env
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Database files
+*.db
+*.sqlite3

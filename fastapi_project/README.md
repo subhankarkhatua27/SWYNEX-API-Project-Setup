@@ -1,264 +1,465 @@
-SWYNEX Intern Project
+# SWYNEX Intern Project
 
-A simple backend service built with Python and FastAPI.
-The project currently includes a health-check endpoint to verify that the API service is running.
+A production-grade backend service built with Python and FastAPI. The API features user management (CRUD) backed by SQLAlchemy ORM and PostgreSQL (with SQLite compatibility), protected routes using API Key authentication, strict incoming payload validation with Pydantic, and consistent standardized error responses across all failure scenarios.
 
-Project Structure
+---
 
+## Table of Contents
+
+- [Project Structure](#project-structure)
+- [Requirements](#requirements)
+- [Setup & Installation](#setup--installation)
+- [Environment Configuration](#environment-configuration)
+- [Running the Application](#running-the-application)
+- [Authentication & Protected Routes](#authentication--protected-routes)
+- [Incoming Payload Validation](#incoming-payload-validation)
+- [Standardized Error Responses](#standardized-error-responses)
+- [API Endpoints Overview](#api-endpoints-overview)
+- [How to Test the Protected Routes](#how-to-test-the-protected-routes)
+  - [Method 1: Interactive Swagger UI (`/docs`)](#method-1-interactive-swagger-ui-docs)
+  - [Method 2: Command Line Testing with `curl`](#method-2-command-line-testing-with-curl)
+  - [Method 3: PowerShell Testing with `Invoke-RestMethod`](#method-3-powershell-testing-with-invoke-restmethod)
+  - [Method 4: Automated Test Suite with `pytest`](#method-4-automated-test-suite-with-pytest)
+- [Interactive API Documentation](#interactive-api-documentation)
+
+---
+
+## Project Structure
+
+```text
 SWYNEX_Intern_Project/
 │
-├── .venv/                  # Local virtual environment (not committed)
+├── .venv/                      # Local Python virtual environment (ignored in git)
+├── tests/                      # Automated test suite
+│   ├── __init__.py
+│   └── test_api.py             # 14 unit & integration test cases
 │
-└── fastapi_project/
-    ├── app/
-    │   ├── main.py         # FastAPI application and health-check endpoint
-    │   └── .env            # Local environment configuration (not committed)
-    │
-    ├── .gitignore
-    ├── README.md
-    └── requirements.txt
+├── fastapi_project/
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── auth.py             # API Key authentication dependency (X-API-Key / Bearer)
+│   │   ├── db.py               # Database engine, sessionmaker, and session dependency
+│   │   ├── main.py             # FastAPI app, exception handlers, and API routes
+│   │   ├── tables.py           # SQLAlchemy ORM User model
+│   │   ├── validators.py       # Pydantic schemas, payload validators, error models
+│   │   └── .env                # Local secrets (not committed to git)
+│   │
+│   ├── .env.example            # Sample environment variables template
+│   ├── .gitignore
+│   ├── README.md
+│   └── requirements.txt        # Project dependencies
+└── .gitignore
+```
 
-The Git repository is initialized at the SWYNEX_Intern_Project root.
+---
 
-Requirements
+## Requirements
 
-Python 3.10+ recommended
+- **Python 3.10+** (Python 3.10, 3.11, 3.12, 3.13, or 3.14)
+- **pip** package installer
+- **Git**
 
-pip
+---
 
-Git
+## Setup & Installation
 
-Setup
+### 1. Clone the repository
 
-1. Clone the repository
-
+```bash
 git clone <YOUR_GITHUB_REPOSITORY_URL>
 cd SWYNEX_Intern_Project
+```
 
-2. Create a virtual environment
+### 2. Create and activate a virtual environment
 
-Windows PowerShell:
-
+**Windows PowerShell:**
+```powershell
 python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
 
-3. Activate the virtual environment
+**Linux / macOS:**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
 
-Windows PowerShell:
+When activated, your terminal prompt will show `(.venv)`.
 
-.venv\Scripts\Activate.ps1
+### 3. Install dependencies
 
-If activation is successful, your terminal should show (.venv).
-
-4. Install dependencies
-
+```bash
 pip install -r fastapi_project/requirements.txt
+```
 
-Environment Configuration
+---
 
-Environment-specific values should be stored in a .env file and should not be committed to Git.
+## Environment Configuration
 
-For example:
+Configuration is managed via a `.env` file located in `fastapi_project/app/.env` (or project root). A template is provided in `fastapi_project/.env.example`.
 
-fastapi_project/
-└── app/
-    └── .env
+Create or edit `fastapi_project/app/.env`:
 
-If the project requires environment variables, create the .env file locally and add the required variables.
+```env
+# Database connection string (PostgreSQL or SQLite)
+DATABASE_URL="postgresql+psycopg://postgres:your_password@localhost/swynex_db"
+# Or for local SQLite:
+# DATABASE_URL="sqlite:///./users.db"
 
-Never commit API keys, passwords, tokens, or other secrets to GitHub.
+# Master API Key for protected endpoints
+API_KEY="swynex-secret-api-key-2026"
+```
 
-Run the Application
+> **Security Note:** Never commit `.env` containing sensitive credentials to GitHub. The `.gitignore` file is configured to exclude all `.env` files.
 
-From the repository root:
+---
 
+## Running the Application
+
+From the repository root `SWYNEX_Intern_Project`:
+
+```bash
 uvicorn fastapi_project.app.main:app --reload
+```
 
-The API will normally be available at:
-
+The API service will start at:
+```
 http://127.0.0.1:8000
+```
 
-Health Check
+---
 
-The application provides the following endpoint:
+## Authentication & Protected Routes
 
-GET /health-check
+Write operations and sensitive endpoints are protected with API Key authentication:
 
-Open:
+- **Protected Endpoints:**
+  - `POST /users` (Create new user)
+  - `PUT /users/{user_id}` (Update existing user)
+  - `DELETE /users/{user_id}` (Delete user)
+- **Public Endpoints:**
+  - `GET /health-check` (System health probe)
+  - `GET /users` (List all users)
+  - `GET /users/{user_id}` (View user details)
 
-http://127.0.0.1:8000/health-check
+### How Authentication Works
 
-Example response:
+Clients authenticate by supplying the API key in either of two standard header formats:
 
+1. **Header (Recommended):**
+   ```http
+   X-API-Key: swynex-secret-api-key-2026
+   ```
+2. **Bearer Token (Alternative):**
+   ```http
+   Authorization: Bearer swynex-secret-api-key-2026
+   ```
+
+Authentication is validated using constant-time comparison (`secrets.compare_digest`) to prevent timing attacks. If the key is missing or invalid, the API returns a consistent `401 UNAUTHORIZED` error response.
+
+---
+
+## Incoming Payload Validation
+
+All request payloads are strictly validated using Pydantic schemas in `app/validators.py`:
+
+### 1. User Creation (`POST /users`) — `UserRequest`
+
+| Field | Type | Rules | Example |
+|---|---|---|---|
+| `name` | string | Required, 2–100 characters, automatically trimmed of whitespace, must contain alphabetic characters. Cannot be blank. | `"John Doe"` |
+| `email` | string (EmailStr) | Required, valid RFC email address, normalized to lowercase, max 255 chars. | `"john.doe@example.com"` |
+
+### 2. User Update (`PUT /users/{user_id}`) — `UserUpdateRequest`
+
+| Field | Type | Rules | Example |
+|---|---|---|---|
+| `name` | string | Optional, 2–100 characters if supplied. | `"Jane Doe"` |
+| `email` | string (EmailStr) | Optional, valid RFC email address if supplied. | `"jane.doe@example.com"` |
+
+*Note:* At least one field (`name` or `email`) must be provided in the update payload.
+
+### 3. Path Parameters (`user_id`)
+
+The `user_id` path parameter is constrained to positive integers (`user_id > 0`). Non-positive IDs return a validation error.
+
+---
+
+## Standardized Error Responses
+
+Every error across the entire application—whether from authentication failure, invalid payload, database conflict, missing resource, or server error—returns a consistent JSON envelope:
+
+```json
 {
-  "status": "ok",
-  "service": "FastAPI",
-  "message": "Service is running smoothly"
+  "status": "error",
+  "code": "<MACHINE_READABLE_CODE>",
+  "message": "<HUMAN_READABLE_MESSAGE>",
+  "details": null
 }
+```
 
-API Documentation
+### Error Code Reference
 
-FastAPI automatically provides interactive API documentation.
+| Status Code | Code String | Trigger Scenario |
+|---|---|---|
+| **401 Unauthorized** | `UNAUTHORIZED` | Missing or invalid `X-API-Key` header on protected endpoints. |
+| **403 Forbidden** | `FORBIDDEN` | Access forbidden. |
+| **404 Not Found** | `NOT_FOUND` | User ID does not exist in the database. |
+| **409 Conflict** | `CONFLICT` | Attempt to register or update to an email address that already exists. |
+| **422 Unprocessable Content** | `VALIDATION_ERROR` | Missing required fields, invalid email format, empty whitespace name, or non-positive ID. |
+| **500 Internal Server Error** | `INTERNAL_SERVER_ERROR` | Unhandled server exception. |
 
-Swagger UI:
+### Error Response Examples
 
-http://127.0.0.1:8000/docs
-
-ReDoc:
-
-http://127.0.0.1:8000/redoc
-
-Development
-
-Start the server with:
-
-uvicorn fastapi_project.app.main:app --reload
-
-The --reload option automatically restarts the development server when code changes are detected.
-
-Git Notes
-
-The local virtual environment should not be committed to GitHub. The repository contains requirements.txt so that dependencies can be recreated on another machine.
-
-Typical workflow:
-
-git add .
-git commit -m "Update backend service"
-git push
-
-User Management API
-
-The backend has been extended with user CRUD operations using FastAPI and SQLAlchemy.
-
-Project Features
-
-- Health check endpoint
-- Create a new user
-- Retrieve a user by ID
-- Update an existing user
-- Delete a user
-- Input validation with Pydantic
-- SQLAlchemy ORM models and database session management
-
-API Endpoints
-
-Create User
-
-Method: POST
-Endpoint: /users
-
-Request body:
-
+#### 1. Unauthorized (401)
+```json
 {
-  "name": "John Doe",
-  "email": "john@example.com"
+  "status": "error",
+  "code": "UNAUTHORIZED",
+  "message": "Authentication required. Please provide a valid API key via the 'X-API-Key' header.",
+  "details": null
 }
+```
 
-Example response:
-
+#### 2. Validation Error (422)
+When fields fail validation, the `details` array provides exact field-level diagnostics:
+```json
 {
-  "id": 1,
-  "name": "John Doe",
-  "email": "john@example.com"
+  "status": "error",
+  "code": "VALIDATION_ERROR",
+  "message": "Input validation failed. Please review the provided fields.",
+  "details": [
+    {
+      "field": "name",
+      "message": "Name must be at least 2 non-whitespace characters long."
+    },
+    {
+      "field": "email",
+      "message": "value is not a valid email address: The email address is not valid. It must have exactly one @"
+    }
+  ]
 }
+```
 
-Get User by ID
-
-Method: GET
-Endpoint: /users/{user_id}
-
-Example response:
-
+#### 3. Duplicate Email Conflict (409)
+```json
 {
-  "id": 1,
-  "name": "John Doe",
-  "email": "john@example.com"
+  "status": "error",
+  "code": "CONFLICT",
+  "message": "A user with email 'john.doe@example.com' already exists.",
+  "details": null
 }
+```
 
-Update User
-
-Method: PUT
-Endpoint: /users/{user_id}
-
-Request body:
-
+#### 4. Resource Not Found (404)
+```json
 {
-  "name": "John Updated",
-  "email": "johnupdated@example.com"
+  "status": "error",
+  "code": "NOT_FOUND",
+  "message": "User with ID 999 not found",
+  "details": null
 }
+```
 
-Example response:
+---
 
+## API Endpoints Overview
+
+| Method | Endpoint | Auth Required | Description |
+|---|---|:---:|---|
+| `GET` | `/health-check` | No | System health check |
+| `GET` | `/users` | No | List all users |
+| `GET` | `/users/{user_id}` | No | Get user details by ID |
+| `POST` | `/users` | **Yes (`X-API-Key`)** | Create a new user (Status 201) |
+| `PUT` | `/users/{user_id}` | **Yes (`X-API-Key`)** | Update user details (Status 200) |
+| `DELETE` | `/users/{user_id}` | **Yes (`X-API-Key`)** | Delete user record (Status 200) |
+
+---
+
+## How to Test the Protected Routes
+
+### Method 1: Interactive Swagger UI (`/docs`)
+
+1. Start the API server:
+   ```bash
+   uvicorn fastapi_project.app.main:app --reload
+   ```
+2. Open your browser and navigate to:
+   ```
+   http://127.0.0.1:8000/docs
+   ```
+3. Click the green **Authorize** (padlock) button at the top-right of the page.
+4. In the dialog, enter your API key under `api_key_header_scheme`:
+   ```
+   swynex-secret-api-key-2026
+   ```
+5. Click **Authorize**, then **Close**.
+6. Expand `POST /users`, click **Try it out**, enter a JSON payload, and click **Execute**.
+   - With authorization: returns `201 Created`.
+   - To test 401: click **Authorize** again, click **Logout**, and execute `POST /users`—you will receive the standard `401 UNAUTHORIZED` error.
+
+---
+
+### Method 2: Command Line Testing with `curl`
+
+Below are copy-paste commands to test each scenario using `curl`:
+
+#### Scenario A: Missing API Key (Fails with 401 Unauthorized)
+```bash
+curl -i -X POST http://127.0.0.1:8000/users \
+  -H "Content-Type: application/json" \
+  -d "{\"name\": \"Alice\", \"email\": \"alice@example.com\"}"
+```
+*Expected Output:* Status `401 Unauthorized` with `code: "UNAUTHORIZED"`.
+
+#### Scenario B: Invalid API Key (Fails with 401 Unauthorized)
+```bash
+curl -i -X POST http://127.0.0.1:8000/users \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: invalid-key" \
+  -d "{\"name\": \"Alice\", \"email\": \"alice@example.com\"}"
+```
+*Expected Output:* Status `401 Unauthorized` with `message: "Invalid API key provided. Access denied."`.
+
+#### Scenario C: Valid API Key & Valid Payload (Succeeds with 201 Created)
+```bash
+curl -i -X POST http://127.0.0.1:8000/users \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: swynex-secret-api-key-2026" \
+  -d "{\"name\": \"Alice Cooper\", \"email\": \"alice.cooper@example.com\"}"
+```
+*Expected Output:* Status `201 Created` with JSON:
+```json
 {
-  "id": 1,
-  "name": "John Updated",
-  "email": "johnupdated@example.com"
+  "id": 6,
+  "name": "Alice Cooper",
+  "email": "alice.cooper@example.com"
 }
+```
 
-Delete User
+#### Scenario D: Invalid Payload Validation (Fails with 422 Unprocessable Content)
+Send an empty body, blank name, or invalid email address with the valid API key:
+```bash
+curl -i -X POST http://127.0.0.1:8000/users \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: swynex-secret-api-key-2026" \
+  -d "{\"name\": \"  \", \"email\": \"invalid-email-format\"}"
+```
+*Expected Output:* Status `422` with `code: "VALIDATION_ERROR"` and detailed error diagnostics.
 
-Method: DELETE
-Endpoint: /users/{user_id}
+#### Scenario E: Duplicate Email Conflict (Fails with 409 Conflict)
+Attempt to create another user with an already registered email:
+```bash
+curl -i -X POST http://127.0.0.1:8000/users \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: swynex-secret-api-key-2026" \
+  -d "{\"name\": \"Alice Duplicate\", \"email\": \"alice.cooper@example.com\"}"
+```
+*Expected Output:* Status `409 Conflict` with `code: "CONFLICT"`.
 
-Example response:
+#### Scenario F: Update User with Valid API Key (Succeeds with 200 OK)
+```bash
+curl -i -X PUT http://127.0.0.1:8000/users/6 \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: swynex-secret-api-key-2026" \
+  -d "{\"name\": \"Alice Cooper Updated\"}"
+```
+*Expected Output:* Status `200 OK` with updated user record.
 
+#### Scenario G: Delete User with Valid API Key (Succeeds with 200 OK)
+```bash
+curl -i -X DELETE http://127.0.0.1:8000/users/6 \
+  -H "X-API-Key: swynex-secret-api-key-2026"
+```
+*Expected Output:* Status `200 OK` with:
+```json
 {
   "message": "User deleted successfully"
 }
+```
 
-Validation Models
+#### Scenario H: Non-Existent User Lookup (Fails with 404 Not Found)
+```bash
+curl -i -X GET http://127.0.0.1:8000/users/999999
+```
+*Expected Output:* Status `404 Not Found` with `code: "NOT_FOUND"`.
 
-The API uses Pydantic models to validate request and response payloads.
+---
 
-UserRequest model:
+### Method 3: PowerShell Testing with `Invoke-RestMethod`
 
-- name: string
-- email: valid email address
+If using Windows PowerShell:
 
-UserResponse model:
+```powershell
+# Set API Key variable
+$apiKey = "swynex-secret-api-key-2026"
+$headers = @{
+    "Content-Type" = "application/json"
+    "X-API-Key"    = $apiKey
+}
 
-- id: integer
-- name: string
-- email: valid email address
+# 1. Create a User (Protected)
+$newUser = @{
+    name  = "Bruce Wayne"
+    email = "bruce.wayne@example.com"
+} | ConvertTo-Json
 
-These models ensure incoming user data is properly structured before being processed by the application.
+$response = Invoke-RestMethod -Uri "http://127.0.0.1:8000/users" -Method Post -Headers $headers -Body $newUser
+$response
 
-Database Models
+# 2. Retrieve the Created User (Public)
+$userId = $response.id
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/users/$userId" -Method Get
 
-The project includes a SQLAlchemy ORM model for the users table.
+# 3. Test Unauthorized Access (Should throw 401)
+try {
+    Invoke-RestMethod -Uri "http://127.0.0.1:8000/users" -Method Post -Body $newUser -ContentType "application/json"
+} catch {
+    $_.Exception.Response.StatusCode
+    $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+    $reader.ReadToEnd()
+}
 
-User table fields:
+# 4. Delete the User (Protected)
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/users/$userId" -Method Delete -Headers $headers
+```
 
-- id: primary key
-- name: required string
-- email: required unique string
+---
 
-This table is created automatically when the application starts using the SQLAlchemy metadata.
+### Method 4: Automated Test Suite with `pytest`
 
-Database Session Configuration
+The repository includes a complete automated test suite in `tests/test_api.py`. The suite uses an in-memory SQLite database to run isolated tests without mutating production or local PostgreSQL data.
 
-The application includes a database connection setup and session management using SQLAlchemy:
+Run the entire test suite from the repository root:
 
-- Database URL is loaded from environment variables
-- Engine is created using create_engine()
-- SessionLocal is configured with sessionmaker()
-- get_db() provides a database session for each request
-- Base.metadata.create_all() ensures the tables exist
+```bash
+pytest -v
+```
 
-Example environment variable:
+**Test Coverage Summary:**
 
-DATABASE_URL=sqlite:///./users.db
+```text
+tests/test_api.py::test_health_check_public_access                    PASSED
+tests/test_api.py::test_create_user_unauthorized_when_missing_api_key  PASSED
+tests/test_api.py::test_create_user_unauthorized_when_invalid_api_key  PASSED
+tests/test_api.py::test_update_user_unauthorized_when_missing_api_key  PASSED
+tests/test_api.py::test_delete_user_unauthorized_when_missing_api_key  PASSED
+tests/test_api.py::test_bearer_token_authentication_supported          PASSED
+tests/test_api.py::test_payload_validation_empty_body                  PASSED
+tests/test_api.py::test_payload_validation_invalid_email               PASSED
+tests/test_api.py::test_payload_validation_blank_whitespace_name       PASSED
+tests/test_api.py::test_payload_validation_name_too_short              PASSED
+tests/test_api.py::test_path_parameter_validation_invalid_id           PASSED
+tests/test_api.py::test_full_user_crud_flow_with_auth                  PASSED
+tests/test_api.py::test_duplicate_email_conflict_error                 PASSED
+tests/test_api.py::test_user_not_found_consistent_error                PASSED
+```
 
-This configuration allows the API to interact with the database and manage user records efficiently.
+---
 
-Database Files and Modules
+## Interactive API Documentation
 
-The project now includes the following database-related files:
+Once the server is running, explore the auto-generated interactive documentation:
 
-- app/db.py: database connection and session setup
-- app/tables.py: database models and ORM table definitions
-- app/validators.py: request/response validation models
-- app/main.py: API routes and CRUD logic
-
-This structure keeps the API, validation layer, and database layer organized and easy to maintain.
-
-
+- **Swagger UI:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) (Includes "Authorize" button to set `X-API-Key`)
+- **ReDoc:** [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)

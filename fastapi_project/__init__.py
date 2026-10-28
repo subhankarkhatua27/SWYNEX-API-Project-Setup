@@ -1,0 +1,1 @@
+# SWYNEX FastAPI Project
