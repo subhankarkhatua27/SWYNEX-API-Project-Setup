@@ -7,9 +7,9 @@ A production-ready RESTful backend service built with **Python**, **FastAPI**, a
 ## 📌 Submission Links
 
 - **GitHub Repository URL:** [https://github.com/subhankarkhatua27/SWYNEX-API-Project-Setup](https://github.com/subhankarkhatua27/SWYNEX-API-Project-Setup)
-- **Live Service URL:** `https://<YOUR-RENDER-APP-NAME>.onrender.com` *(Update this with your deployed Render URL)*
-- **Live Interactive API Docs (Swagger UI):** `https://<YOUR-RENDER-APP-NAME>.onrender.com/docs`
-- **Live Alternative API Docs (ReDoc):** `https://<YOUR-RENDER-APP-NAME>.onrender.com/redoc`
+- **Live Service URL:** `https://swynex-api-project-setup-1.onrender.com/` 
+- **Live Interactive API Docs (Swagger UI):** `https://swynex-api-project-setup-1.onrender.com/docs`
+- **Live Alternative API Docs (ReDoc):** `https://swynex-api-project-setup-1.onrender.com/redoc`
 
 > **Note on Live Service URL:** Follow the [Render Deployment Guide](#render-deployment-guide) below to deploy this service to Render in just a few minutes. Once deployed, replace `<YOUR-RENDER-APP-NAME>` with your active Render web service subdomain.
 
