@@ -1,4 +1,5 @@
 import os
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
@@ -12,6 +13,8 @@ except ImportError:
     except ImportError:
         from tables import Base
 
+logger = logging.getLogger("swynex_api")
+
 # Ensure .env is loaded from the app folder or project root
 env_file = Path(__file__).parent / ".env"
 if env_file.exists():
@@ -20,11 +23,27 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./users.db")
 if not DATABASE_URL:
-    raise ValueError("DATABASE_URL environment variable is not set.")
+    DATABASE_URL = "sqlite:///./users.db"
 
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+# Translate Render / legacy PostgreSQL URI schemes to psycopg v3 driver format
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
+elif DATABASE_URL.startswith("postgresql://") and not DATABASE_URL.startswith("postgresql+"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
 
-engine = create_engine(DATABASE_URL, connect_args=connect_args)
+# Configure connection parameters
+connect_args = {}
+engine_kwargs = {}
+
+if DATABASE_URL.startswith("sqlite"):
+    connect_args["check_same_thread"] = False
+    engine_kwargs["connect_args"] = connect_args
+else:
+    # Recommended production settings for PostgreSQL on cloud hosts like Render
+    engine_kwargs["pool_pre_ping"] = True
+    engine_kwargs["pool_recycle"] = 300
+
+engine = create_engine(DATABASE_URL, **engine_kwargs)
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
@@ -41,5 +60,13 @@ def get_db():
         db.close()
 
 
-# Ensure tables exist
-Base.metadata.create_all(bind=engine)
+def init_db():
+    """Initializes database schema and ensures all tables are created."""
+    Base.metadata.create_all(bind=engine)
+
+
+# Attempt table initialization on load; catch exceptions if DB is initializing
+try:
+    init_db()
+except Exception as e:
+    logger.warning(f"Initial schema migration deferred: {e}")

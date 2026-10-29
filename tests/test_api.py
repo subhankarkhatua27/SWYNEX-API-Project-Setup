@@ -49,8 +49,21 @@ AUTH_HEADERS = {"X-API-Key": VALID_API_KEY}
 
 
 # ============================================================================
-# 1. Health Check (Public Endpoint)
+# 1. System Endpoints (Root, Health Check, CORS)
 # ============================================================================
+
+def test_api_root_metadata():
+    """Verify root endpoint is publicly accessible and returns documentation metadata."""
+    response = client.get("/")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["name"] == "SWYNEX User Management API"
+    assert data["status"] == "online"
+    assert "documentation" in data
+    assert data["documentation"]["swagger_ui"] == "/docs"
+    assert data["documentation"]["redoc"] == "/redoc"
+    assert "endpoints" in data
+
 
 def test_health_check_public_access():
     """Verify health check is publicly accessible without authentication."""
@@ -59,6 +72,21 @@ def test_health_check_public_access():
     data = response.json()
     assert data["status"] == "ok"
     assert data["service"] == "FastAPI"
+
+
+def test_cors_headers_enabled():
+    """Verify CORS headers are present for cross-origin client access."""
+    origin = "http://localhost:3000"
+    response = client.options(
+        "/users",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "X-API-Key,Content-Type",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == origin
 
 
 # ============================================================================
@@ -234,3 +262,38 @@ def test_user_not_found_consistent_error():
     assert data["status"] == "error"
     assert data["code"] == "NOT_FOUND"
     assert "User with ID 999999 not found" in data["message"]
+
+
+# ============================================================================
+# 5. Sample Data Seeding Endpoint
+# ============================================================================
+
+def test_seed_sample_data_unauthorized_without_key():
+    """POST /seed-data without API key returns 401 UNAUTHORIZED."""
+    response = client.post("/seed-data")
+    assert response.status_code == 401
+    assert response.json()["code"] == "UNAUTHORIZED"
+
+
+def test_seed_sample_data_authorized_and_idempotent():
+    """POST /seed-data populates database and is idempotent when called repeatedly."""
+    # First seed run
+    res1 = client.post("/seed-data", headers=AUTH_HEADERS)
+    assert res1.status_code == 200
+    data1 = res1.json()
+    assert data1["status"] == "ok"
+    assert data1["users_created"] >= 6
+    assert data1["total_users"] >= 6
+
+    # Verify users appear in GET /users
+    users_res = client.get("/users")
+    assert users_res.status_code == 200
+    users_list = users_res.json()
+    assert len(users_list) == data1["total_users"]
+
+    # Second seed run should be idempotent (0 new users created)
+    res2 = client.post("/seed-data", headers=AUTH_HEADERS)
+    assert res2.status_code == 200
+    data2 = res2.json()
+    assert data2["users_created"] == 0
+    assert data2["total_users"] == data1["total_users"]

@@ -1,7 +1,9 @@
 import logging
+from contextlib import asynccontextmanager
 from typing import List
 from fastapi import Depends, FastAPI, HTTPException, Path, Request, status
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -10,11 +12,14 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 try:
     from .auth import verify_api_key
-    from .db import get_db
+    from .db import get_db, init_db
+    from .seed import seed_database
     from .tables import User
     from .validators import (
         ErrorResponse,
         MessageResponse,
+        RootResponse,
+        SeedResponse,
         UserRequest,
         UserResponse,
         UserUpdateRequest,
@@ -22,22 +27,28 @@ try:
 except ImportError:
     try:
         from app.auth import verify_api_key
-        from app.db import get_db
+        from app.db import get_db, init_db
+        from app.seed import seed_database
         from app.tables import User
         from app.validators import (
             ErrorResponse,
             MessageResponse,
+            RootResponse,
+            SeedResponse,
             UserRequest,
             UserResponse,
             UserUpdateRequest,
         )
     except ImportError:
         from auth import verify_api_key
-        from db import get_db
+        from db import get_db, init_db
+        from seed import seed_database
         from tables import User
         from validators import (
             ErrorResponse,
             MessageResponse,
+            RootResponse,
+            SeedResponse,
             UserRequest,
             UserResponse,
             UserUpdateRequest,
@@ -47,13 +58,38 @@ except ImportError:
 logger = logging.getLogger("swynex_api")
 logging.basicConfig(level=logging.INFO)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler ensuring database tables exist at application startup."""
+    try:
+        init_db()
+        logger.info("Database initialized successfully.")
+    except Exception as e:
+        logger.warning(f"Database schema initialization deferred: {e}")
+    yield
+
+
 app = FastAPI(
     title="SWYNEX User Management API",
     description=(
-        "FastAPI service with API key authentication, strict payload validation, "
-        "and standardized, consistent error responses."
+        "Production-grade FastAPI service with API key authentication, strict payload validation, "
+        "sample data seeding, and standardized, consistent error responses."
     ),
     version="1.0.0",
+    lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+)
+
+# Enable Cross-Origin Resource Sharing (CORS) for web clients and tools
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Standard HTTP status code mapping to machine-readable string codes
@@ -156,6 +192,36 @@ COMMON_ERROR_RESPONSES = {
 # ==========================================
 
 @app.get(
+    "/",
+    response_model=RootResponse,
+    tags=["System"],
+    summary="API Root Information",
+    description="Public endpoint returning service metadata, status, interactive documentation URLs, and available endpoints."
+)
+def api_root():
+    return {
+        "name": "SWYNEX User Management API",
+        "version": "1.0.0",
+        "status": "online",
+        "documentation": {
+            "swagger_ui": "/docs",
+            "redoc": "/redoc",
+            "openapi_json": "/openapi.json"
+        },
+        "endpoints": {
+            "root": "GET /",
+            "health_check": "GET /health-check",
+            "list_users": "GET /users",
+            "get_user": "GET /users/{user_id}",
+            "create_user": "POST /users (Protected: X-API-Key)",
+            "update_user": "PUT /users/{user_id} (Protected: X-API-Key)",
+            "delete_user": "DELETE /users/{user_id} (Protected: X-API-Key)",
+            "seed_data": "POST /seed-data (Protected: X-API-Key)"
+        }
+    }
+
+
+@app.get(
     "/health-check",
     tags=["System"],
     summary="Health check",
@@ -166,6 +232,27 @@ def health_check():
         "status": "ok",
         "service": "FastAPI",
         "message": "Service is running smoothly",
+    }
+
+
+@app.post(
+    "/seed-data",
+    response_model=SeedResponse,
+    responses=COMMON_ERROR_RESPONSES,
+    tags=["System (Protected)"],
+    summary="Seed sample data (Protected)",
+    description="Protected endpoint requiring 'X-API-Key' authentication header to populate database with sample users. Idempotent: skips existing emails."
+)
+def seed_sample_users(
+    db: Session = Depends(get_db),
+    _api_key: str = Depends(verify_api_key),
+):
+    stats = seed_database(db)
+    return {
+        "status": "ok",
+        "message": f"Sample data seeding complete. Created {stats['users_created']} new user(s).",
+        "users_created": stats["users_created"],
+        "total_users": stats["total_users"],
     }
 
 

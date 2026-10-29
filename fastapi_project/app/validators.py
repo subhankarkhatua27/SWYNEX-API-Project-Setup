@@ -1,5 +1,5 @@
 import re
-from typing import List, Optional
+from typing import Dict, List, Optional
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 
@@ -17,6 +17,15 @@ class UserRequest(BaseModel):
         description="Valid email address of the user",
         examples=["john.doe@example.com"]
     )
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "name": "John Doe",
+                "email": "john.doe@example.com"
+            }
+        }
+    }
 
     @field_validator("name")
     @classmethod
@@ -48,6 +57,15 @@ class UserUpdateRequest(BaseModel):
         description="Updated email address of the user (optional)",
         examples=["jane.doe@example.com"]
     )
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "name": "Jane Doe",
+                "email": "jane.doe@example.com"
+            }
+        }
+    }
 
     @field_validator("name")
     @classmethod
@@ -85,6 +103,27 @@ class UserResponse(BaseModel):
 
 class MessageResponse(BaseModel):
     message: str = Field(..., description="Success message", examples=["User deleted successfully"])
+
+
+class DocumentationLinks(BaseModel):
+    swagger_ui: str = Field(..., description="Swagger UI URL", examples=["/docs"])
+    redoc: str = Field(..., description="ReDoc URL", examples=["/redoc"])
+    openapi_json: str = Field(..., description="OpenAPI JSON Schema URL", examples=["/openapi.json"])
+
+
+class RootResponse(BaseModel):
+    name: str = Field(..., description="API Name", examples=["SWYNEX User Management API"])
+    version: str = Field(..., description="API Version", examples=["1.0.0"])
+    status: str = Field(..., description="Operational status", examples=["online"])
+    documentation: DocumentationLinks
+    endpoints: Dict[str, str] = Field(..., description="List of primary endpoints")
+
+
+class SeedResponse(BaseModel):
+    status: str = Field(default="ok", description="Operation status indicator", examples=["ok"])
+    message: str = Field(..., description="Operation summary", examples=["Sample data seeding complete. Created 6 new user(s)."])
+    users_created: int = Field(..., description="Number of newly inserted users", examples=[6])
+    total_users: int = Field(..., description="Total count of users currently in the database", examples=[6])
 
 
 class ErrorDetail(BaseModel):

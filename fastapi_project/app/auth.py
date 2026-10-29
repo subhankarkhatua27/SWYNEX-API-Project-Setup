@@ -49,7 +49,8 @@ def verify_api_key(
             headers={"WWW-Authenticate": "ApiKey"}
         )
 
-    if not secrets.compare_digest(provided_key, EXPECTED_API_KEY):
+    expected_key = os.getenv("API_KEY", EXPECTED_API_KEY)
+    if not secrets.compare_digest(provided_key, expected_key):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API key provided. Access denied.",

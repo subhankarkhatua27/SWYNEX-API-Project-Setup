@@ -1,10 +1,21 @@
 # Virtual environment
 .venv/
+*/.venv/
 
 # Python bytecode & cache
 __pycache__/
 *.py[cod]
+*$py.class
 .pytest_cache/
+.coverage
+htmlcov/
 
 # Environment files
+.env
 *.env
+app/.env
+fastapi_project/app/.env
+
+# Database files
+*.db
+*.sqlite3
